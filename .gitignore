@@ -1,0 +1,4 @@
+*.kubeconfig
+_build/
+vendor/
+__debug*

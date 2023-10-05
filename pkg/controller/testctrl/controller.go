@@ -18,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/kontext"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -117,11 +116,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 func (r *Reconciler) reconcile(ctx context.Context, log *zap.SugaredLogger) (*reconcile.Result, error) {
 	arsName := "v42.foos.tremors.valley"
-	wsCtx := kontext.WithCluster(ctx, "root:org1")
+	// wsCtx := kontext.WithCluster(ctx, "root:org1")
 	kcpClient := r.kcpCluster.GetClient()
 
 	ars := &kcpdevv1alpha1.APIResourceSchema{}
-	if err := kcpClient.Get(wsCtx, types.NamespacedName{Name: arsName}, ars); err != nil {
+	if err := kcpClient.Get(ctx, types.NamespacedName{Name: arsName}, ars); err != nil {
 		log.Infow("Creating new ARS, cause could not fetch existing one", zap.Error(err))
 
 		// create the ARS if it was missing
@@ -145,7 +144,7 @@ func (r *Reconciler) reconcile(ctx context.Context, log *zap.SugaredLogger) (*re
 			},
 		}
 
-		log.Infow("result of creating ARS", zap.Error(kcpClient.Create(wsCtx, ars)))
+		log.Infow("result of creating ARS", zap.Error(kcpClient.Create(ctx, ars)))
 	} else {
 		log.Info("Found ARS, nothing to do.")
 	}

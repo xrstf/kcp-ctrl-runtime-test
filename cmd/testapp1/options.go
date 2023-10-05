@@ -3,10 +3,9 @@ package main
 import (
 	"errors"
 
-	"github.com/spf13/pflag"
-
 	"k8c.io/kcp-ctrl-runtime-test/pkg/log"
 
+	"github.com/spf13/pflag"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 

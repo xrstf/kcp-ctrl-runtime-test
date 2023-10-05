@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"go.uber.org/zap"
-
 	kcpdevv1alpha1 "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	"github.com/kcp-dev/logicalcluster/v3"
+	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/kontext"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -28,10 +28,11 @@ const (
 )
 
 type Reconciler struct {
-	localClient ctrlruntimeclient.Client
-	kcpCluster  cluster.Cluster
-	log         *zap.SugaredLogger
-	recorder    record.EventRecorder
+	localClient        ctrlruntimeclient.Client
+	kcpCluster         cluster.Cluster
+	log                *zap.SugaredLogger
+	recorder           record.EventRecorder
+	logicalClusterName logicalcluster.Name
 }
 
 var kcpAwareEnqueueRequestForObject = handler.EnqueueRequestsFromMapFunc(func(o ctrlruntimeclient.Object) []reconcile.Request {
@@ -61,14 +62,16 @@ func decodeKcpAwareRequest(req reconcile.Request) (types.NamespacedName, logical
 func Add(
 	mgr manager.Manager,
 	kcpCluster cluster.Cluster,
+	logicalClusterName logicalcluster.Name,
 	log *zap.SugaredLogger,
 	numWorkers int,
 ) error {
 	reconciler := &Reconciler{
-		localClient: mgr.GetClient(),
-		kcpCluster:  kcpCluster,
-		log:         log.Named(ControllerName),
-		recorder:    mgr.GetEventRecorderFor(ControllerName),
+		localClient:        mgr.GetClient(),
+		kcpCluster:         kcpCluster,
+		log:                log.Named(ControllerName),
+		recorder:           mgr.GetEventRecorderFor(ControllerName),
+		logicalClusterName: logicalClusterName,
 	}
 
 	ctrlOptions := controller.Options{
@@ -90,9 +93,6 @@ func Add(
 func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	log := r.log.With("configmap", request)
 	log.Info("Processing")
-
-	// request, cluster := decodeKcpAwareRequest(kcpRequest)
-	// reconcileCtx := kontext.WithCluster(ctx, cluster)
 
 	cm := &corev1.ConfigMap{}
 	if err := r.localClient.Get(ctx, request.NamespacedName, cm); err != nil {
@@ -116,11 +116,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 func (r *Reconciler) reconcile(ctx context.Context, log *zap.SugaredLogger) (*reconcile.Result, error) {
 	arsName := "v42.foos.tremors.valley"
-	// wsCtx := kontext.WithCluster(ctx, "root:org1")
+	wsCtx := kontext.WithCluster(ctx, r.logicalClusterName)
 	kcpClient := r.kcpCluster.GetClient()
 
 	ars := &kcpdevv1alpha1.APIResourceSchema{}
-	if err := kcpClient.Get(ctx, types.NamespacedName{Name: arsName}, ars); err != nil {
+	if err := kcpClient.Get(wsCtx, types.NamespacedName{Name: arsName}, ars); err != nil {
 		log.Infow("Creating new ARS, cause could not fetch existing one", zap.Error(err))
 
 		// create the ARS if it was missing
@@ -144,7 +144,7 @@ func (r *Reconciler) reconcile(ctx context.Context, log *zap.SugaredLogger) (*re
 			},
 		}
 
-		log.Infow("result of creating ARS", zap.Error(kcpClient.Create(ctx, ars)))
+		log.Infow("result of creating ARS", zap.Error(kcpClient.Create(wsCtx, ars)))
 	} else {
 		log.Info("Found ARS, nothing to do.")
 	}

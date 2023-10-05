@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
 	ctrlruntimelzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
